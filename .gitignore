@@ -1,0 +1,6 @@
+pkgrepo
+pkgupdates.conf
+test.*.conf
+pkgrepo-update/*
+.archversion.cache
+*.swp

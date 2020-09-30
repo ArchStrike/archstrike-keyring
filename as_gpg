@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+export LANG=C
+
+tmpdir=$(mktemp -d)
+
+trap "rm -rf ${tmpdir}" EXIT
+
+keyserver='hkp://pool.sks-keyservers.net'
+as_gpg="gpg --quiet --batch --no-tty --no-permission-warning --keyserver ${keyserver} --passphrase '' --homedir ${tmpdir}  --pinentry-mode=loopback"
+
+pushd $(dirname "${0}") >/dev/null
+
+[[ -f archstrike-trusted ]] && rm archstrike-trusted
+
+${as_gpg} --gen-key <<EOF
+%echo Generating ArchStrike Linux Keyring keychain master key...
+Key-Type: RSA
+Key-Length: 1024
+Key-Usage: sign
+Name-Real: ArchStrike Keyring
+Name-Email: archstrike-keyring@localhost
+Expire-Date: 0
+%commit
+%echo Done
+EOF
+
+while read -ra data; do
+    keyid="${data[0]}"
+    username="${data[@]:1}"
+    ${as_gpg} --recv-keys "${keyid}" &>/dev/null
+    printf 'minimize\nquit\ny\n' | \
+        ${as_gpg} --command-fd 0 --edit-key "${keyid}"
+    ${as_gpg} --yes --lsign-key "${keyid}" &>/dev/null
+    ${as_gpg} --armor --no-emit-version --export "${keyid}" > master/"${username}.asc"
+    echo "${keyid}:4:" >> archstrike-trusted
+done < as_keyids
+${as_gpg} --import-ownertrust < archstrike-trusted 2>/dev/null
+
+cat master/*.asc > archstrike.gpg
